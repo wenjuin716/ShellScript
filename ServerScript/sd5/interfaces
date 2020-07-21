@@ -1,0 +1,79 @@
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+############### enp2s11 ###################
+# The primary network interface
+auto enp2s11
+iface enp2s11 inet dhcp
+
+############### enp2s5 ###################
+auto enp2s5
+iface enp2s5 inet static
+address 192.168.200.1
+netmask 255.255.255.0
+# IPv6 configuration
+iface enp2s5 inet6 static
+pre-up modprobe ipv6
+address 2001:200:5566:7788::1
+netmask 32
+
+############### enp2s5.7 ###################
+# Create VLAN 7 in /etc/rc.local
+auto enp2s5.7
+#iface enp2s5.7 inet manual
+iface enp2s5.7 inet static
+address 192.168.7.1
+netmask 255.255.255.0
+hwaddress ether 00:13:d4:ed:dc:07
+# IPv6 configuration
+iface enp2s5.7 inet6 static
+pre-up modprobe ipv6
+address 2001:7:5566:7788::1
+netmask 32
+
+############### enp2s5.35 ###################
+# Create VLAN 35 in /etc/rc.local
+auto enp2s5.35
+#iface enp2s5.35 inet manual
+iface enp2s5.35 inet static
+address 192.168.35.1
+netmask 255.255.255.0
+hwaddress ether 00:13:d4:ed:dc:23
+# IPv6 configuration
+iface enp2s5.35 inet6 static
+pre-up modprobe ipv6
+address 2001:35:5566:7788::1
+netmask 32
+
+############### enp2s5.51 ###################
+# Create VLAN 51 in /etc/rc.local
+auto enp2s5.51
+#iface enp2s5.51 inet manual
+iface enp2s5.51 inet static
+address 192.168.51.1
+netmask 255.255.255.0
+hwaddress ether 00:13:d4:ed:dc:33
+# IPv6 configuration
+iface enp2s5.51 inet6 static
+pre-up modprobe ipv6
+address 2001:51:5566:7788::1
+netmask 32
+
+############### enp2s5.55 ###################
+# Create VLAN 55 in /etc/rc.local
+auto enp2s5.55
+iface enp2s5.55 inet static
+address 192.168.55.1
+netmask 255.255.255.0
+hwaddress ether 00:13:d4:ed:dc:37
+# IPv6 configuration
+iface enp2s5.55 inet6 static
+pre-up modprobe ipv6
+address 2001:55:5566:7788::1
+netmask 32

@@ -1,0 +1,87 @@
+interface enp2s5                #The interface used to send ADV
+{  
+    AdvSendAdvert on;        #Enable Advertisements
+    AdvManagedFlag on;      #Enable Managed bit
+    AdvOtherConfigFlag on;   #Enable Other Configure bit
+    MinRtrAdvInterval 300;     #Set min. interval to send adv.
+    MaxRtrAdvInterval 600;    #Set max. interval to send adv.
+    AdvLinkMTU 1400;
+    prefix 2001:200:5566:7788::/64    #Prefix
+    {
+        AdvOnLink on;        #Adv. Using Link Layer
+        AdvAutonomous on;    #Autonomous Flag
+	#AdvRouterAddr on;
+    };
+
+    RDNSS 2001:4860:4860::8888 2001:4860:4860::8844{
+	AdvRDNSSPreference 8;
+	AdvRDNSSOpen off;
+	AdvRDNSSLifetime 1200;
+    };
+};
+
+interface enp2s5.7                #The interface used to send ADV
+{  
+    AdvSendAdvert on;        #Enable Advertisements
+    AdvManagedFlag on;      #Enable Managed bit
+    AdvOtherConfigFlag on;   #Enable Other Configure bit
+    MinRtrAdvInterval 300;     #Set min. interval to send adv.
+    MaxRtrAdvInterval 600;    #Set max. interval to send adv.
+    AdvLinkMTU 1400;
+    prefix 2001:7:5566:7788::/64    #Prefix
+    {
+        AdvOnLink on;        #Adv. Using Link Layer
+        AdvAutonomous on;    #Autonomous Flag
+	#AdvRouterAddr on;
+    };
+
+    RDNSS 2001:4860:4860::8888 2001:4860:4860::8844{
+	AdvRDNSSPreference 8;
+	AdvRDNSSOpen off;
+	AdvRDNSSLifetime 1200;
+    };
+};
+
+interface enp2s5.35                #The interface used to send ADV
+{  
+    AdvSendAdvert on;        #Enable Advertisements
+    AdvManagedFlag on;      #Enable Managed bit
+    AdvOtherConfigFlag on;   #Enable Other Configure bit
+    MinRtrAdvInterval 300;     #Set min. interval to send adv.
+    MaxRtrAdvInterval 600;    #Set max. interval to send adv.
+    AdvLinkMTU 1400;
+    prefix 2001:35:5566:7788::/64    #Prefix
+    {
+        AdvOnLink on;        #Adv. Using Link Layer
+        AdvAutonomous on;    #Autonomous Flag
+	#AdvRouterAddr on;
+    };
+
+    RDNSS 2001:4860:4860::8888 2001:4860:4860::8844{
+	AdvRDNSSPreference 8;
+	AdvRDNSSOpen off;
+	AdvRDNSSLifetime 1200;
+    };
+};
+
+interface enp2s5.55                #The interface used to send ADV
+{  
+    AdvSendAdvert on;        #Enable Advertisements
+    AdvManagedFlag on;      #Enable Managed bit
+    AdvOtherConfigFlag on;   #Enable Other Configure bit
+    MinRtrAdvInterval 300;     #Set min. interval to send adv.
+    MaxRtrAdvInterval 600;    #Set max. interval to send adv.
+    AdvLinkMTU 1400;
+    prefix 2001:55:5566:7788::/64    #Prefix
+    {
+        AdvOnLink on;        #Adv. Using Link Layer
+        AdvAutonomous on;    #Autonomous Flag
+	#AdvRouterAddr on;
+    };
+
+    RDNSS 2001:4860:4860::8888 2001:4860:4860::8844{
+	AdvRDNSSPreference 8;
+	AdvRDNSSOpen off;
+	AdvRDNSSLifetime 1200;
+    };
+};
