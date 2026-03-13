@@ -28,7 +28,8 @@ show_usage() {
     echo -e "  ${GREEN}BUILD_ROOT_DIR${NC}  Root folder for build outputs. (Must exist before running)"
     echo ""
     echo -e "${YELLOW}Configuration File Variables (Optional):${NC}"
-    echo -e "  ${GREEN}DOWNLOAD_DIR${NC}    Path to shared 'dl' folder to symlink (e.g., \"/Yocto/dl\")"
+    echo -e "  ${GREEN}DOWNLOAD_DIR${NC}    Path to shared 'dl' folder to symlink (e.g., \"/Yocto/dl\",\"~/downloads\")"
+	echo -e "  ${GREEN}FEED_TARBALL${NC}    Filename or path of the feeds tarball to extract"
     echo ""
     echo -e "${YELLOW}Example Config (.conf):${NC}"
     echo -e "  SOURCE_CODE_DIR=\"/path/to/sdk/folder\""
@@ -105,6 +106,8 @@ build_single_profile_releases-wrt_prpl410_xml() {
     local dl_folder=$5
     local j_count=$6
 
+	local SDK_VER_NAME="prplos-prplware-v4.1.0"
+
     local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
     local build_dir="${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
 
@@ -135,18 +138,113 @@ build_single_profile_releases-wrt_prpl410_xml() {
     [ "$DRY_RUN" = false ] && set -e
 
     # Step 2: Environment Setup
-    run_cmd "cd $build_dir/prplos-prplware-v4.1.0"
+    run_cmd "cd $build_dir/${SDK_VER_NAME}"
     eval REAL_DL_PATH="$dl_folder"
     if [ -n "$REAL_DL_PATH" ]; then
-      run_cmd "rm -f $build_dir/prplos-prplware-v4.1.0/dl"
-      run_cmd "ln -s $REAL_DL_PATH $build_dir/prplos-prplware-v4.1.0/dl"
+      run_cmd "rm -f $build_dir/${SDK_VER_NAME}/dl"
+      run_cmd "ln -s $REAL_DL_PATH $build_dir/${SDK_VER_NAME}/dl"
     fi
+
+    # Extract feeds if FEED_TARBALL is defined and file exists
+    if [ -n "$ABS_FEED_TARBALL" ]; then
+		if [ -f "$ABS_FEED_TARBALL" ]; then
+			run_cmd "tar jxvf $ABS_FEED_TARBALL >> $log_file 2>&1"
+		else
+			echo -e "${YELLOW}[Warning] FEED_TARBALL ($ABS_FEED_TARBALL) not found.${NC}"
+		fi
+    fi
+
     run_cmd "cd $build_dir"
-    
+
     run_cmd "./setup_openwrt.sh $profile_name > $log_file 2>&1"
     
-    run_cmd "cd $build_dir/prplos-prplware-v4.1.0"
-    run_cmd "make defconfig >> $log_file 2>&1"
+    run_cmd "cd $build_dir/${SDK_VER_NAME}"
+    run_cmd "yes 'x' | make menuconfig >> $log_file 2>&1"
+    run_cmd "yes 'x' | make kernel_menuconfig >> $log_file 2>&1"
+
+    # Step 3: Compilation
+    if [ "$VERBOSE" = true ]; then
+        run_cmd "make -j$j_count V=s 2>&1 | tee -a $log_file"
+    else
+        run_cmd "make -j$j_count V=s >> $log_file 2>&1"
+    fi
+
+    local EXIT_CODE=$?
+    if [ "$DRY_RUN" = false ]; then
+        local ELAPSED=$(( SECONDS - START_TIME ))
+        local DURATION_MSG="$(($ELAPSED / 60))m $(($ELAPSED % 60))s"
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} ($DURATION_MSG)"
+        else
+            echo -e "[$profile_name] ${RED}FAILED.${NC} ($DURATION_MSG)"
+            echo -e "  Log: $log_file"
+        fi
+    fi
+    [ "$DRY_RUN" = false ] && set +e
+}
+
+build_single_profile_releases-wrt_2410_xml() {
+    local profile_name=$1
+    local source_root=$2
+    local xml_full_path=$3
+    local ts=$4
+    local dl_folder=$5
+    local j_count=$6
+
+	local SDK_VER_NAME="openwrt-24.10.4"
+
+    local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
+    local build_dir="${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
+
+    local log_file="${build_dir}/build_${profile_name}_${ts}.log"
+    local cmd_log="${build_dir}/cmd_history_${profile_name}.log"
+    local START_TIME=$SECONDS
+    
+    if [ "$DRY_RUN" = false ]; then
+        export CURRENT_CMD_LOG="$cmd_log"
+        mkdir -p "$build_dir"
+        echo "--- Command History for $profile_name ---" > "$cmd_log"
+    else
+        unset CURRENT_CMD_LOG
+    fi
+
+    echo -e "\n${YELLOW}--- Processing Profile: $profile_name ---${NC}"
+    echo -e "${YELLOW}Build Directory: $build_dir${NC}"
+    
+    local out_target="/dev/null"
+    [ "$VERBOSE" = true ] && out_target="/dev/stdout"
+
+    # Step 1: Directory Preparation
+    if [ -d "$build_dir" ]; then
+        run_cmd "rm -rf $build_dir 2>/dev/null"
+    fi
+    run_cmd "cp -rf $source_root $build_dir 2>/dev/null"
+
+    [ "$DRY_RUN" = false ] && set -e
+
+    # Step 2: Environment Setup
+    run_cmd "cd $build_dir/${SDK_VER_NAME}"
+    eval REAL_DL_PATH="$dl_folder"
+    if [ -n "$REAL_DL_PATH" ]; then
+      run_cmd "rm -f $build_dir/${SDK_VER_NAME}/dl"
+      run_cmd "ln -s $REAL_DL_PATH $build_dir/${SDK_VER_NAME}/dl"
+    fi
+
+    # Extract feeds if FEED_TARBALL is defined and file exists
+    if [ -n "$ABS_FEED_TARBALL" ]; then
+		if [ -f "$ABS_FEED_TARBALL" ]; then
+			run_cmd "tar jxvf $ABS_FEED_TARBALL >> $log_file 2>&1"
+		else
+			echo -e "${YELLOW}[Warning] FEED_TARBALL ($ABS_FEED_TARBALL) not found.${NC}"
+		fi
+    fi
+
+    run_cmd "cd $build_dir"
+
+    run_cmd "./setup_openwrt.sh $profile_name > $log_file 2>&1"
+
+    run_cmd "cd $build_dir/${SDK_VER_NAME}"
+    run_cmd "yes 'x' | make menuconfig >> $log_file 2>&1"
     run_cmd "yes 'x' | make kernel_menuconfig >> $log_file 2>&1"
 
     # Step 3: Compilation
@@ -171,7 +269,7 @@ build_single_profile_releases-wrt_prpl410_xml() {
 }
 
 # --- 6. Main Loop & Function Dispatcher ---
-TIMESTAMP=$(date +"%y%m%d%H%M")
+TIMESTAMP=$(date +"%y%m%d%H%M%S")
 TOP_DIR=$(pwd)
 
 # Resolve Paths
@@ -186,6 +284,15 @@ if [[ "$EXPANDED_BUILD_ROOT" == /* ]]; then
     ABS_BUILD_ROOT="$EXPANDED_BUILD_ROOT"
 else
     ABS_BUILD_ROOT="${TOP_DIR}/${EXPANDED_BUILD_ROOT}"
+fi
+
+# Resolve FEED_TARBALL to absolute path
+if [ -n "$FEED_TARBALL" ]; then
+    if [[ "$FEED_TARBALL" == /* || "$FEED_TARBALL" == ~* ]]; then
+        eval ABS_FEED_TARBALL="$FEED_TARBALL"
+    else
+        ABS_FEED_TARBALL="${TOP_DIR}/${FEED_TARBALL}"
+    fi
 fi
 
 # Mandatory Check
@@ -216,6 +323,9 @@ echo -e "${YELLOW}Source Code Dir: $ABS_SOURCE_CODE_DIR${NC}"
 echo -e "${YELLOW}XML Name:        $XML_NAME${NC}"
 echo -e "${YELLOW}Build Root:      $ABS_BUILD_ROOT${NC}"
 echo -e "${YELLOW}Build Mode:      -j$J_VAL${NC}"
+if [ -n "$ABS_FEED_TARBALL" ]; then
+    echo -e "${YELLOW}Feed Tarball:    $ABS_FEED_TARBALL${NC}"
+fi
 echo -e "${YELLOW}Timestamp:       $TIMESTAMP${NC}"
 [ "$VERBOSE" = true ] && echo -e "${YELLOW}Verbose Mode:    ON${NC}"
 [ "$DRY_RUN" = true ] && echo -e "${YELLOW}!!! DRY-RUN MODE ENABLED !!!${NC}"
