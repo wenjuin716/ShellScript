@@ -137,6 +137,9 @@ build_single_profile_releases-wrt_prpl410_xml() {
 
     [ "$DRY_RUN" = false ] && set -e
 
+    run_cmd "cd $build_dir"
+    run_cmd "repo start ${ts} --all"
+
     # Step 2: Environment Setup
     run_cmd "cd $build_dir/${SDK_VER_NAME}"
     eval REAL_DL_PATH="$dl_folder"
@@ -222,6 +225,9 @@ build_single_profile_releases-wrt_2410_xml() {
 
     [ "$DRY_RUN" = false ] && set -e
 
+    run_cmd "cd $build_dir"
+    run_cmd "repo start ${ts} --all"
+
     # Step 2: Environment Setup
     run_cmd "cd $build_dir/${SDK_VER_NAME}"
     eval REAL_DL_PATH="$dl_folder"
@@ -268,6 +274,72 @@ build_single_profile_releases-wrt_2410_xml() {
     [ "$DRY_RUN" = false ] && set +e
 }
 
+# Build Function for USDK Series ---
+build_single_profile_usdk_series() {
+    local profile_name=$1
+    local source_root=$2
+    local xml_full_path=$3
+    local ts=$4
+    local dl_folder=$5
+    local j_count=$6
+
+    local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
+    local build_dir="${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
+
+    local log_file="${build_dir}/build_${profile_name}_${ts}.log"
+    local cmd_log="${build_dir}/cmd_history_${profile_name}.log"
+    local START_TIME=$SECONDS
+
+    if [ "$DRY_RUN" = false ]; then
+        export CURRENT_CMD_LOG="$cmd_log"
+        mkdir -p "$build_dir"
+        echo "--- Command History for $profile_name ---" > "$cmd_log"
+    else
+        unset CURRENT_CMD_LOG
+    fi
+
+    echo -e "\n${YELLOW}--- Processing Profile: $profile_name (USDK) ---${NC}"
+    echo -e "${YELLOW}Build Directory: $build_dir${NC}"
+
+    local out_target="/dev/null"
+    [ "$VERBOSE" = true ] && out_target="/dev/stdout"
+
+    # Step 1: Directory Preparation
+    if [ -d "$build_dir" ]; then
+        run_cmd "rm -rf $build_dir 2>/dev/null"
+    fi
+    run_cmd "cp -rf $source_root $build_dir 2>/dev/null"
+
+    [ "$DRY_RUN" = false ] && set -e
+
+    run_cmd "cd $build_dir"
+    run_cmd "repo start ${ts} --all"
+
+    # Step 2: USDK Configuration and Compilation
+    run_cmd "make preconfig${profile_name} > $log_file 2>&1"
+    run_cmd "yes 'Exit' | make menuconfig >> $log_file 2>&1"
+
+    if [ "$VERBOSE" = true ]; then
+        run_cmd "make all -j$j_count 2>&1 | tee -a $log_file"
+    else
+        run_cmd "make all -j$j_count >> $log_file 2>&1"
+    fi
+
+    local EXIT_CODE=$?
+    if [ "$DRY_RUN" = false ]; then
+        local ELAPSED=$(( SECONDS - START_TIME ))
+        local DURATION_MSG="$(($ELAPSED / 60))m $(($ELAPSED % 60))s"
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} ($DURATION_MSG)"
+        else
+            echo -e "[$profile_name] ${RED}FAILED.${NC} ($DURATION_MSG)"
+            echo -e "  Log: $log_file"
+        fi
+    fi
+    [ "$DRY_RUN" = false ] && set +e
+}
+
+
 # --- 6. Main Loop & Function Dispatcher ---
 TIMESTAMP=$(date +"%y%m%d%H%M%S")
 TOP_DIR=$(pwd)
@@ -306,8 +378,13 @@ J_VAL=1
 [ "$USE_NPROC" = true ] && J_VAL=$(nproc)
 
 # Function dispatch
-FUNC_SUFFIX=$(echo "$XML_NAME" | sed 's|/|-|g' | sed 's|\.|_|g')
-TARGET_FUNC="build_single_profile_${FUNC_SUFFIX}"
+# Function dispatch logic
+if [[ "$XML_NAME" == *"usdk"* ]]; then
+    TARGET_FUNC="build_single_profile_usdk_series"
+else
+    FUNC_SUFFIX=$(echo "$XML_NAME" | sed 's|/|-|g' | sed 's|\.|_|g')
+    TARGET_FUNC="build_single_profile_${FUNC_SUFFIX}"
+fi
 
 if ! declare -f "$TARGET_FUNC" > /dev/null; then
     echo -e "${RED}Error: Build function '$TARGET_FUNC' not defined for XML: $XML_NAME${NC}"
