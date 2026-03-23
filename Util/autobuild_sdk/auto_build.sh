@@ -19,6 +19,7 @@ show_usage() {
     echo -e "  --dry-run        Show commands without executing them."
     echo -e "  --verbose        Show real-time compilation output (Sequential build)."
     echo -e "  --j-nproc        Use all CPU cores for compilation (default is -j1)."
+    echo -e "  --ts-dir         Include timestamp folder in the build path."
     echo -e "  --help, -h       Show this help message."
     echo ""
     echo -e "${YELLOW}Configuration File Variables (Required):${NC}"
@@ -29,7 +30,7 @@ show_usage() {
     echo ""
     echo -e "${YELLOW}Configuration File Variables (Optional):${NC}"
     echo -e "  ${GREEN}DOWNLOAD_DIR${NC}    Path to shared 'dl' folder to symlink (e.g., \"/Yocto/dl\",\"~/downloads\")"
-	echo -e "  ${GREEN}FEED_TARBALL${NC}    Filename or path of the feeds tarball to extract"
+    echo -e "  ${GREEN}FEED_TARBALL${NC}    Filename or path of the feeds tarball to extract"
     echo ""
     echo -e "${YELLOW}Example Config (.conf):${NC}"
     echo -e "  SOURCE_CODE_DIR=\"/path/to/sdk/folder\""
@@ -43,6 +44,7 @@ show_usage() {
 DRY_RUN=false
 VERBOSE=false
 USE_NPROC=false
+USE_TS_IN_DIR=false
 
 ARGS=()
 for arg in "$@"; do
@@ -50,6 +52,7 @@ for arg in "$@"; do
         --dry-run) DRY_RUN=true ;;
         --verbose) VERBOSE=true ;;
         --j-nproc) USE_NPROC=true ;;
+        --ts-dir) USE_TS_IN_DIR=true ;;
         --help|-h) show_usage ;;
         *) ARGS+=("$arg") ;;
     esac
@@ -78,17 +81,15 @@ fi
 
 eval EXPANDED_BUILD_ROOT="$BUILD_ROOT_DIR"
 
-# --- 4. Mockable Execution Function ---
+# --- 4. Execution Function ---
 run_cmd() {
     local cmd="$*"
     local current_ts=$(date +'%H:%M:%S')
 
-    # Log to file (if not dry run and log path is defined)
     if [ "$DRY_RUN" = false ] && [ -n "$CURRENT_CMD_LOG" ]; then
         echo "[$current_ts] $cmd" >> "$CURRENT_CMD_LOG"
     fi
 
-    # Display to console (Mandatory for both Normal and Dry-run)
     if [ "$DRY_RUN" = true ]; then
         echo -e "${YELLOW}[$current_ts][DRY-RUN] Executing: $cmd${NC}"
     else
@@ -97,7 +98,64 @@ run_cmd() {
     fi
 }
 
-# --- 5. Build Function for releases-wrt_prpl410_xml ---
+# --- 5. Helper Functions for Build Steps ---
+
+# Generate Build Directory path based on parameters
+get_build_dir() {
+    local xml_full_path=$1
+    local ts=$2
+    local profile_name=$3
+
+    local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
+    if [ "$USE_TS_IN_DIR" = true ]; then
+        echo "${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
+    else
+        echo "${ABS_BUILD_ROOT}/${xml_dir_path}/${profile_name}"
+    fi
+}
+
+# Calculate elapsed time and format as Xm Ys
+get_elapsed_time() {
+    local start_time=$1
+    local end_time=$2
+    local elapsed=$(( end_time - start_time ))
+    echo "$((elapsed / 60))m $((elapsed % 60))s"
+}
+
+# Step 1: Checkout new SDK
+checkout_new_sdk() {
+    local source_root=$1
+    local build_dir=$2
+
+    if [ -d "$build_dir" ]; then
+        run_cmd "rm -rf $build_dir 2>/dev/null"
+    fi
+
+    local parent_dir=$(dirname "$build_dir")
+    if [ ! -d "$parent_dir" ]; then
+        run_cmd "mkdir -p $parent_dir"
+    fi
+
+    run_cmd "cp -rf $source_root $build_dir 2>/dev/null"
+}
+
+# Step 4: Data Collection
+collect_data() {
+    local profile_name=$1
+    local build_dir=$2
+    # Placeholder for future expansion
+    :
+}
+
+# Step 5: Release Resource
+release_resource() {
+    local profile_name=$1
+    local build_dir=$2
+    # Placeholder for future expansion
+    :
+}
+
+# --- 6A. Build Function for releases-wrt_prpl410_xml ---
 build_single_profile_releases-wrt_prpl410_xml() {
     local profile_name=$1
     local source_root=$2
@@ -106,41 +164,44 @@ build_single_profile_releases-wrt_prpl410_xml() {
     local dl_folder=$5
     local j_count=$6
 
-	local SDK_VER_NAME="prplos-prplware-v4.1.0"
-
-    local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
-    local build_dir="${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
+    local SDK_VER_NAME="prplos-prplware-v4.1.0"
+    local build_dir=$(get_build_dir "$xml_full_path" "$ts" "$profile_name")
 
     local log_file="${build_dir}/build_${profile_name}_${ts}.log"
     local cmd_log="${build_dir}/cmd_history_${profile_name}.log"
     local START_TIME=$SECONDS
+    local step_start
+    local step_end
     
-    if [ "$DRY_RUN" = false ]; then
-        export CURRENT_CMD_LOG="$cmd_log"
-        mkdir -p "$build_dir"
-        echo "--- Command History for $profile_name ---" > "$cmd_log"
-    else
-        unset CURRENT_CMD_LOG
-    fi
-
     echo -e "\n${YELLOW}--- Processing Profile: $profile_name ---${NC}"
     echo -e "${YELLOW}Build Directory: $build_dir${NC}"
     
     local out_target="/dev/null"
     [ "$VERBOSE" = true ] && out_target="/dev/stdout"
 
-    # Step 1: Directory Preparation
-    if [ -d "$build_dir" ]; then
-        run_cmd "rm -rf $build_dir 2>/dev/null"
-    fi
-    run_cmd "cp -rf $source_root $build_dir 2>/dev/null"
+    # Step 1: Checkout new SDK
+    echo -e "\n${YELLOW}--- Step 1: Checkout new SDK ---${NC}"
+    step_start=$SECONDS
+    checkout_new_sdk "$source_root" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 1 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
 
     [ "$DRY_RUN" = false ] && set -e
 
+    # Initialize log after directory is successfully created by checkout_new_sdk
+    if [ "$DRY_RUN" = false ]; then
+        export CURRENT_CMD_LOG="$cmd_log"
+        echo "--- Command History for $profile_name ---" > "$cmd_log"
+    else
+        unset CURRENT_CMD_LOG
+    fi
+
+    # Step 2: SDK Preparation
+    echo -e "\n${YELLOW}--- Step 2: SDK Preparation ---${NC}"
+    step_start=$SECONDS
     run_cmd "cd $build_dir"
     run_cmd "repo start ${ts} --all"
 
-    # Step 2: Environment Setup
     run_cmd "cd $build_dir/${SDK_VER_NAME}"
     eval REAL_DL_PATH="$dl_folder"
     if [ -n "$REAL_DL_PATH" ]; then
@@ -148,44 +209,63 @@ build_single_profile_releases-wrt_prpl410_xml() {
       run_cmd "ln -s $REAL_DL_PATH $build_dir/${SDK_VER_NAME}/dl"
     fi
 
-    # Extract feeds if FEED_TARBALL is defined and file exists
     if [ -n "$ABS_FEED_TARBALL" ]; then
-		if [ -f "$ABS_FEED_TARBALL" ]; then
-			run_cmd "tar jxvf $ABS_FEED_TARBALL >> $log_file 2>&1"
-		else
-			echo -e "${YELLOW}[Warning] FEED_TARBALL ($ABS_FEED_TARBALL) not found.${NC}"
-		fi
+        if [ -f "$ABS_FEED_TARBALL" ]; then
+            run_cmd "tar jxvf $ABS_FEED_TARBALL >> $log_file 2>&1"
+        else
+            echo -e "${YELLOW}[Warning] FEED_TARBALL ($ABS_FEED_TARBALL) not found.${NC}"
+        fi
     fi
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 2 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
 
+    # Step 3: SDK Compilation
+    echo -e "\n${YELLOW}--- Step 3: SDK Compilation ---${NC}"
+    step_start=$SECONDS
     run_cmd "cd $build_dir"
-
     run_cmd "./setup_openwrt.sh $profile_name > $log_file 2>&1"
     
     run_cmd "cd $build_dir/${SDK_VER_NAME}"
     run_cmd "yes 'x' | make menuconfig >> $log_file 2>&1"
     run_cmd "yes 'x' | make kernel_menuconfig >> $log_file 2>&1"
 
-    # Step 3: Compilation
     if [ "$VERBOSE" = true ]; then
         run_cmd "make -j$j_count V=s 2>&1 | tee -a $log_file"
     else
         run_cmd "make -j$j_count V=s >> $log_file 2>&1"
     fi
-
     local EXIT_CODE=$?
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 3 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 4: Data Collection
+    echo -e "\n${YELLOW}--- Step 4: Data Collection ---${NC}"
+    step_start=$SECONDS
+    collect_data "$profile_name" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 4 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 5: Release Resource
+    echo -e "\n${YELLOW}--- Step 5: Release Resource ---${NC}"
+    step_start=$SECONDS
+    release_resource "$profile_name" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 5 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
     if [ "$DRY_RUN" = false ]; then
         local ELAPSED=$(( SECONDS - START_TIME ))
         local DURATION_MSG="$(($ELAPSED / 60))m $(($ELAPSED % 60))s"
         if [ $EXIT_CODE -eq 0 ]; then
-            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} ($DURATION_MSG)"
+            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} (Total: $DURATION_MSG)"
         else
-            echo -e "[$profile_name] ${RED}FAILED.${NC} ($DURATION_MSG)"
+            echo -e "[$profile_name] ${RED}FAILED.${NC} (Total: $DURATION_MSG)"
             echo -e "  Log: $log_file"
         fi
     fi
     [ "$DRY_RUN" = false ] && set +e
 }
 
+# --- 6B. Build Function for releases-wrt_2410_xml ---
 build_single_profile_releases-wrt_2410_xml() {
     local profile_name=$1
     local source_root=$2
@@ -194,41 +274,44 @@ build_single_profile_releases-wrt_2410_xml() {
     local dl_folder=$5
     local j_count=$6
 
-	local SDK_VER_NAME="openwrt-24.10.4"
-
-    local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
-    local build_dir="${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
+    local SDK_VER_NAME="openwrt-24.10.4"
+    local build_dir=$(get_build_dir "$xml_full_path" "$ts" "$profile_name")
 
     local log_file="${build_dir}/build_${profile_name}_${ts}.log"
     local cmd_log="${build_dir}/cmd_history_${profile_name}.log"
     local START_TIME=$SECONDS
+    local step_start
+    local step_end
     
-    if [ "$DRY_RUN" = false ]; then
-        export CURRENT_CMD_LOG="$cmd_log"
-        mkdir -p "$build_dir"
-        echo "--- Command History for $profile_name ---" > "$cmd_log"
-    else
-        unset CURRENT_CMD_LOG
-    fi
-
     echo -e "\n${YELLOW}--- Processing Profile: $profile_name ---${NC}"
     echo -e "${YELLOW}Build Directory: $build_dir${NC}"
     
     local out_target="/dev/null"
     [ "$VERBOSE" = true ] && out_target="/dev/stdout"
 
-    # Step 1: Directory Preparation
-    if [ -d "$build_dir" ]; then
-        run_cmd "rm -rf $build_dir 2>/dev/null"
-    fi
-    run_cmd "cp -rf $source_root $build_dir 2>/dev/null"
+    # Step 1: Checkout new SDK
+    echo -e "\n${YELLOW}--- Step 1: Checkout new SDK ---${NC}"
+    step_start=$SECONDS
+    checkout_new_sdk "$source_root" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 1 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
 
     [ "$DRY_RUN" = false ] && set -e
 
+    # Initialize log after directory is successfully created by checkout_new_sdk
+    if [ "$DRY_RUN" = false ]; then
+        export CURRENT_CMD_LOG="$cmd_log"
+        echo "--- Command History for $profile_name ---" > "$cmd_log"
+    else
+        unset CURRENT_CMD_LOG
+    fi
+
+    # Step 2: SDK Preparation
+    echo -e "\n${YELLOW}--- Step 2: SDK Preparation ---${NC}"
+    step_start=$SECONDS
     run_cmd "cd $build_dir"
     run_cmd "repo start ${ts} --all"
 
-    # Step 2: Environment Setup
     run_cmd "cd $build_dir/${SDK_VER_NAME}"
     eval REAL_DL_PATH="$dl_folder"
     if [ -n "$REAL_DL_PATH" ]; then
@@ -236,45 +319,63 @@ build_single_profile_releases-wrt_2410_xml() {
       run_cmd "ln -s $REAL_DL_PATH $build_dir/${SDK_VER_NAME}/dl"
     fi
 
-    # Extract feeds if FEED_TARBALL is defined and file exists
     if [ -n "$ABS_FEED_TARBALL" ]; then
-		if [ -f "$ABS_FEED_TARBALL" ]; then
-			run_cmd "tar jxvf $ABS_FEED_TARBALL >> $log_file 2>&1"
-		else
-			echo -e "${YELLOW}[Warning] FEED_TARBALL ($ABS_FEED_TARBALL) not found.${NC}"
-		fi
+        if [ -f "$ABS_FEED_TARBALL" ]; then
+            run_cmd "tar jxvf $ABS_FEED_TARBALL >> $log_file 2>&1"
+        else
+            echo -e "${YELLOW}[Warning] FEED_TARBALL ($ABS_FEED_TARBALL) not found.${NC}"
+        fi
     fi
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 2 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
 
+    # Step 3: SDK Compilation
+    echo -e "\n${YELLOW}--- Step 3: SDK Compilation ---${NC}"
+    step_start=$SECONDS
     run_cmd "cd $build_dir"
-
     run_cmd "./setup_openwrt.sh $profile_name > $log_file 2>&1"
 
     run_cmd "cd $build_dir/${SDK_VER_NAME}"
     run_cmd "yes 'x' | make menuconfig >> $log_file 2>&1"
     run_cmd "yes 'x' | make kernel_menuconfig >> $log_file 2>&1"
 
-    # Step 3: Compilation
     if [ "$VERBOSE" = true ]; then
         run_cmd "make -j$j_count V=s 2>&1 | tee -a $log_file"
     else
         run_cmd "make -j$j_count V=s >> $log_file 2>&1"
     fi
-
     local EXIT_CODE=$?
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 3 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 4: Data Collection
+    echo -e "\n${YELLOW}--- Step 4: Data Collection ---${NC}"
+    step_start=$SECONDS
+    collect_data "$profile_name" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 4 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 5: Release Resource
+    echo -e "\n${YELLOW}--- Step 5: Release Resource ---${NC}"
+    step_start=$SECONDS
+    release_resource "$profile_name" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 5 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
     if [ "$DRY_RUN" = false ]; then
         local ELAPSED=$(( SECONDS - START_TIME ))
         local DURATION_MSG="$(($ELAPSED / 60))m $(($ELAPSED % 60))s"
         if [ $EXIT_CODE -eq 0 ]; then
-            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} ($DURATION_MSG)"
+            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} (Total: $DURATION_MSG)"
         else
-            echo -e "[$profile_name] ${RED}FAILED.${NC} ($DURATION_MSG)"
+            echo -e "[$profile_name] ${RED}FAILED.${NC} (Total: $DURATION_MSG)"
             echo -e "  Log: $log_file"
         fi
     fi
     [ "$DRY_RUN" = false ] && set +e
 }
 
-# Build Function for USDK Series ---
+# --- 6C. Build Function for USDK Series ---
 build_single_profile_usdk_series() {
     local profile_name=$1
     local source_root=$2
@@ -283,20 +384,13 @@ build_single_profile_usdk_series() {
     local dl_folder=$5
     local j_count=$6
 
-    local xml_dir_path=$(echo "$xml_full_path" | sed 's|.xml$||')
-    local build_dir="${ABS_BUILD_ROOT}/${xml_dir_path}/${ts}/${profile_name}"
+    local build_dir=$(get_build_dir "$xml_full_path" "$ts" "$profile_name")
 
     local log_file="${build_dir}/build_${profile_name}_${ts}.log"
     local cmd_log="${build_dir}/cmd_history_${profile_name}.log"
     local START_TIME=$SECONDS
-
-    if [ "$DRY_RUN" = false ]; then
-        export CURRENT_CMD_LOG="$cmd_log"
-        mkdir -p "$build_dir"
-        echo "--- Command History for $profile_name ---" > "$cmd_log"
-    else
-        unset CURRENT_CMD_LOG
-    fi
+    local step_start
+    local step_end
 
     echo -e "\n${YELLOW}--- Processing Profile: $profile_name (USDK) ---${NC}"
     echo -e "${YELLOW}Build Directory: $build_dir${NC}"
@@ -304,18 +398,35 @@ build_single_profile_usdk_series() {
     local out_target="/dev/null"
     [ "$VERBOSE" = true ] && out_target="/dev/stdout"
 
-    # Step 1: Directory Preparation
-    if [ -d "$build_dir" ]; then
-        run_cmd "rm -rf $build_dir 2>/dev/null"
-    fi
-    run_cmd "cp -rf $source_root $build_dir 2>/dev/null"
+    # Step 1: Checkout new SDK
+    echo -e "\n${YELLOW}--- Step 1: Checkout new SDK ---${NC}"
+    step_start=$SECONDS
+    checkout_new_sdk "$source_root" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 1 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
 
     [ "$DRY_RUN" = false ] && set -e
 
+    # Initialize log after directory is successfully created by checkout_new_sdk
+    if [ "$DRY_RUN" = false ]; then
+        export CURRENT_CMD_LOG="$cmd_log"
+        echo "--- Command History for $profile_name ---" > "$cmd_log"
+    else
+        unset CURRENT_CMD_LOG
+    fi
+
+    # Step 2: SDK Preparation
+    echo -e "\n${YELLOW}--- Step 2: SDK Preparation ---${NC}"
+    step_start=$SECONDS
     run_cmd "cd $build_dir"
     run_cmd "repo start ${ts} --all"
 
-    # Step 2: USDK Configuration and Compilation
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 2 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 3: SDK Compilation
+    echo -e "\n${YELLOW}--- Step 3: SDK Compilation ---${NC}"
+    step_start=$SECONDS
     run_cmd "make preconfig${profile_name} > $log_file 2>&1"
     run_cmd "yes 'Exit' | make menuconfig >> $log_file 2>&1"
 
@@ -324,15 +435,31 @@ build_single_profile_usdk_series() {
     else
         run_cmd "make all -j$j_count >> $log_file 2>&1"
     fi
-
     local EXIT_CODE=$?
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 3 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 4: Data Collection
+    echo -e "\n${YELLOW}--- Step 4: Data Collection ---${NC}"
+    step_start=$SECONDS
+    collect_data "$profile_name" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 4 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
+    # Step 5: Release Resource
+    echo -e "\n${YELLOW}--- Step 5: Release Resource ---${NC}"
+    step_start=$SECONDS
+    release_resource "$profile_name" "$build_dir"
+    step_end=$SECONDS
+    echo -e "${GREEN}Step 5 Duration: $(get_elapsed_time $step_start $step_end)${NC}"
+
     if [ "$DRY_RUN" = false ]; then
         local ELAPSED=$(( SECONDS - START_TIME ))
         local DURATION_MSG="$(($ELAPSED / 60))m $(($ELAPSED % 60))s"
         if [ $EXIT_CODE -eq 0 ]; then
-            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} ($DURATION_MSG)"
+            echo -e "[$profile_name] ${GREEN}SUCCESS.${NC} (Total: $DURATION_MSG)"
         else
-            echo -e "[$profile_name] ${RED}FAILED.${NC} ($DURATION_MSG)"
+            echo -e "[$profile_name] ${RED}FAILED.${NC} (Total: $DURATION_MSG)"
             echo -e "  Log: $log_file"
         fi
     fi
@@ -340,7 +467,7 @@ build_single_profile_usdk_series() {
 }
 
 
-# --- 6. Main Loop & Function Dispatcher ---
+# --- 7. Main Loop & Function Dispatcher ---
 TIMESTAMP=$(date +"%y%m%d%H%M%S")
 TOP_DIR=$(pwd)
 
@@ -377,7 +504,6 @@ fi
 J_VAL=1
 [ "$USE_NPROC" = true ] && J_VAL=$(nproc)
 
-# Function dispatch
 # Function dispatch logic
 if [[ "$XML_NAME" == *"usdk"* ]]; then
     TARGET_FUNC="build_single_profile_usdk_series"
@@ -404,6 +530,7 @@ if [ -n "$ABS_FEED_TARBALL" ]; then
     echo -e "${YELLOW}Feed Tarball:    $ABS_FEED_TARBALL${NC}"
 fi
 echo -e "${YELLOW}Timestamp:       $TIMESTAMP${NC}"
+[ "$USE_TS_IN_DIR" = true ] && echo -e "${YELLOW}Use TS in Dir:   ON${NC}"
 [ "$VERBOSE" = true ] && echo -e "${YELLOW}Verbose Mode:    ON${NC}"
 [ "$DRY_RUN" = true ] && echo -e "${YELLOW}!!! DRY-RUN MODE ENABLED !!!${NC}"
 echo -e "${GREEN}------------------------------------${NC}"
