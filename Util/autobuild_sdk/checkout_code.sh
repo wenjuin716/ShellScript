@@ -25,6 +25,7 @@ file_options=(
     "releases/usdk_v2_2_0_FTTR_release.xml"
     "releases/usdk_v2_2_0_CMCC_NSB_20250606.xml"
     "releases/wrt_prpl410.xml"
+    "releases/wrt_prpl420.xml"
     "releases/wrt_2410.xml"
     "Quit"
 )
